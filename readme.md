@@ -24,7 +24,7 @@ curl --output gpt2-pytorch_model.bin https://s3.amazonaws.com/models.huggingface
 
 ---
 
-##Training with Different Fine-Tuning Techniques
+## Training with Different Fine-Tuning Techniques
 
 ### Adapter Tuning
 
