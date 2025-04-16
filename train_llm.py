@@ -16,8 +16,8 @@ from modify_llm import (
     apply_prefix_layers_to_model,
     LoRAInjectionConv1D,
     LoRAInjection,
-    AdapterLayer,
-    PrefixTuningLayer
+    PrefixInjection,
+    AdapterInjection
 )
 
 
@@ -157,16 +157,20 @@ if __name__ == "__main__":
                         param.requires_grad = True
 
     elif args.finetuning_technique == "adapters":
-        for name, module in model.named_modules():
-            if isinstance(module, AdapterLayer):
-                for param in module.parameters():
+        for module in model.modules():
+            if isinstance(module, AdapterInjection):
+                module.adapter.requires_grad_(True)
+                for param in module.adapter.parameters():
                     param.requires_grad = True
 
+
     elif args.finetuning_technique == "prefix":
-        for name, module in model.named_modules():
-            if isinstance(module, PrefixTuningLayer):
-                for param in module.parameters():
-                    param.requires_grad = True
+        for module in model.modules():
+            if isinstance(module, PrefixInjection):
+                module.prefix.requires_grad_(True) 
+                for pname, param in module.named_parameters():
+                    if pname != "prefix":         
+                        param.requires_grad_(False)
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

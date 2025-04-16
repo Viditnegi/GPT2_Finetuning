@@ -80,37 +80,34 @@ class LoRAInjectionConv1D(nn.Module):
         return final
 
 
-class AdapterLayer(nn.Module):
-
-    def __init__(self, hidden_size, adapter_size, dropout=0.0):
+class AdapterInjection(nn.Module):
+    def __init__(self, original_linear, adapter_size, dropout=0.0):
         super().__init__()
-        self.down_proj = nn.Linear(hidden_size, adapter_size)
-        self.up_proj = nn.Linear(adapter_size, hidden_size)
-        self.activation = nn.ReLU()
-        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+        self.original_linear = original_linear
+        self.adapter = nn.Sequential(
+            nn.Linear(original_linear.out_features, adapter_size),
+            nn.ReLU(),
+            nn.Linear(adapter_size, original_linear.out_features),
+            nn.Dropout(dropout)
+        )
 
     def forward(self, x):
-        down = self.down_proj(x)        
-        down = self.activation(down)
-        up = self.up_proj(down)        
-        up = self.dropout(up)
-        return x + up
+        out = self.original_linear(x)
+        return out + self.adapter(out)
 
 
-class PrefixTuningLayer(nn.Module):
-
-    def __init__(self, hidden_size, prefix_size, dropout=0.0):
+class PrefixInjection(nn.Module):
+    def __init__(self, original_linear, hidden_size, scale=1.0, dropout=0.0):
         super().__init__()
-
+        self.original_linear = original_linear
         self.prefix = nn.Parameter(torch.randn(1, 1, hidden_size) * 0.02)
-        self.scale = prefix_size
+        self.scale = scale
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
     def forward(self, x):
-
+        out = self.original_linear(x)
         prefix = self.dropout(self.prefix) * self.scale
-        return x + prefix
-
+        return out + prefix
 
 def apply_lora_to_model(model, rank, alpha, dropout):
     for name, module in model.named_modules():
@@ -145,31 +142,36 @@ def apply_lora_to_model(model, rank, alpha, dropout):
 
 
 def apply_adapters_to_model(model, adapter_size, dropout):
-    for name, module in model.transformer.h.named_children():
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear):
+            injected_module = AdapterInjection(module, adapter_size=adapter_size, dropout=dropout)
 
-        if isinstance(module, nn.Module):
-            # print("Applying Adapter to module:", name)
-            # print("Original module:", module)
-
-            new_block = nn.Sequential(
-                module,  
-                AdapterLayer(model.transformer.n_embd, adapter_size, dropout)
-            )
-            setattr(model.transformer.h, name, new_block)
-            # print("New module:", new_block)
-            # print("Adapter applied successfully.")
+            parent_name = ".".join(name.split(".")[:-1])
+            child_name = name.split(".")[-1]
+            parent_module = model
+            if parent_name:
+                for level in parent_name.split("."):
+                    parent_module = getattr(parent_module, level)
+            setattr(parent_module, child_name, injected_module)
     return model
 
 
 def apply_prefix_layers_to_model(model, prefix_size, dropout):
-
-    for name, module in model.transformer.h.named_children():
-        if isinstance(module, nn.Module):
-            new_block = nn.Sequential(
-                module, 
-                PrefixTuningLayer(model.transformer.n_embd, prefix_size, dropout)
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear):  # or any strategic place like wte, ln_1 etc.
+            injected_module = PrefixInjection(
+                module, hidden_size=module.out_features,
+                scale=prefix_size, dropout=dropout
             )
-            setattr(model.transformer.h, name, new_block)
+
+            parent_name = ".".join(name.split(".")[:-1])
+            child_name = name.split(".")[-1]
+            parent_module = model
+            if parent_name:
+                for level in parent_name.split("."):
+                    parent_module = getattr(parent_module, level)
+            setattr(parent_module, child_name, injected_module)
+            break  # optional: limit to just one place to inject prefix
     return model
 
 
