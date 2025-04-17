@@ -31,7 +31,6 @@ curl --output gpt2-pytorch_model.bin https://s3.amazonaws.com/models.huggingface
 ```bash
 python train_llm.py \
   --finetuning_technique adapters \
-  --device cuda \
   --adapter_size <size> \
   --adapter_dropout <dropout_rate>
 ```
@@ -41,7 +40,6 @@ python train_llm.py \
 ```bash
 python train_llm.py \
   --finetuning_technique lora \
-  --device cuda \
   --lora_rank <rank> \
   --lora_alpha <alpha> \
   --lora_dropout <dropout_rate>
@@ -52,7 +50,6 @@ python train_llm.py \
 ```bash
 python train_llm.py \
   --finetuning_technique prefix \
-  --device cuda \
   --prefix_size <size> \
   --prefix_dropout <dropout_rate>
 ```
@@ -70,3 +67,16 @@ You can add the following optional parameters to any of the above commands:
 - `--device <cpu|cuda>`
 
 ---
+
+Eg.
+```bash
+python train_llm.py --finetuning_technique adapters --adapter_size 3 --device cuda
+```
+## modify_llm script
+
+The arguments will be same as the training script, except for the Additional Parameters mentioned above.
+
+Eg. 
+```bash
+python modify_llm.py --finetuning_technique adapters --adapter_size 3
+```

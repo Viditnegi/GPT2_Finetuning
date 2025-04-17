@@ -20,6 +20,7 @@ from modify_llm import (
     AdapterInjection
 )
 
+##################################################### T R A I N   F U N C T I O N ###################################################
 
 def train_gpt2(
     model,
@@ -68,6 +69,9 @@ def train_gpt2(
         print(f"Epoch [{epoch+1}/{num_epochs}] finished. Average Loss: {avg_loss:.4f}")
 
 
+
+##################################################### A R G U M E N T S   P A R S I N G ###################################################
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Fine-Tuning Script for GPT2 with LoRA, Prefix Layers, and Adapters"
@@ -104,10 +108,14 @@ def parse_arguments():
 
     return parser.parse_args()
 
+
+
+##################################################### M A I N  ##############################################################
 if __name__ == "__main__":
 
     args = parse_arguments()
 
+    # Load the model
     config = GPT2Config()
     model = GPT2LMHeadModel(config)
     if os.path.exists('gpt2-pytorch_model.bin'):
@@ -123,6 +131,7 @@ if __name__ == "__main__":
     
     model.set_tied()
 
+    # Apply the specified finetuning technique
     if args.finetuning_technique == "lora":
         print("Applying LoRA modifications to the GPT2 model...")
         model = apply_lora_to_model(
@@ -146,9 +155,11 @@ if __name__ == "__main__":
             dropout=args.prefix_dropout
         )
 
+    # Freeze all parameters except for the ones we want to train
     for param in model.parameters():
         param.requires_grad = False
 
+    # Unfreeze parameters based on the finetuning technique
     if args.finetuning_technique == "lora":
         for name, module in model.named_modules():
             if isinstance(module, LoRAInjection) or isinstance(module, LoRAInjectionConv1D):
@@ -178,6 +189,7 @@ if __name__ == "__main__":
 
     train_dataset = AlpacaGPT2Dataset(from_csv=True)
 
+    # Train 
     train_gpt2(
         model,
         train_dataset,

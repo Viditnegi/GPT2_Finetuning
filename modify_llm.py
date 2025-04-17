@@ -9,10 +9,9 @@ from gpt_2_Pytorch.GPT2.model import Conv1D
 from gpt_2_Pytorch.GPT2.utils import load_weight
 
 
+#################################################################### L O R A #################################################################
 class LoRAInjection(nn.Module):
-    """
-    LoRA injection for nn.Linear layers.
-    """
+
     def __init__(self, original_linear, rank, alpha=1.0, dropout=0.0):
         super().__init__()
         self.original_linear = original_linear
@@ -78,37 +77,9 @@ class LoRAInjectionConv1D(nn.Module):
         final_2d = original_out_2d + lora_out_2d
         final = final_2d.view(*size_out) 
         return final
+    
 
-
-class AdapterInjection(nn.Module):
-    def __init__(self, original_linear, adapter_size, dropout=0.0):
-        super().__init__()
-        self.original_linear = original_linear
-        self.adapter = nn.Sequential(
-            nn.Linear(original_linear.out_features, adapter_size),
-            nn.ReLU(),
-            nn.Linear(adapter_size, original_linear.out_features),
-            nn.Dropout(dropout)
-        )
-
-    def forward(self, x):
-        out = self.original_linear(x)
-        return out + self.adapter(out)
-
-
-class PrefixInjection(nn.Module):
-    def __init__(self, original_linear, hidden_size, scale=1.0, dropout=0.0):
-        super().__init__()
-        self.original_linear = original_linear
-        self.prefix = nn.Parameter(torch.randn(1, 1, hidden_size) * 0.02)
-        self.scale = scale
-        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
-
-    def forward(self, x):
-        out = self.original_linear(x)
-        prefix = self.dropout(self.prefix) * self.scale
-        return out + prefix
-
+# Apply LoRA layers to the model
 def apply_lora_to_model(model, rank, alpha, dropout):
     for name, module in model.named_modules():
         # Handle nn.Linear
@@ -140,7 +111,24 @@ def apply_lora_to_model(model, rank, alpha, dropout):
 
     return model
 
+#################################################################### A D A P T E R S #################################################################
+class AdapterInjection(nn.Module):
+    def __init__(self, original_linear, adapter_size, dropout=0.0):
+        super().__init__()
+        self.original_linear = original_linear
+        self.adapter = nn.Sequential(
+            nn.Linear(original_linear.out_features, adapter_size),
+            nn.ReLU(),
+            nn.Linear(adapter_size, original_linear.out_features),
+            nn.Dropout(dropout)
+        )
 
+    def forward(self, x):
+        out = self.original_linear(x)
+        return out + self.adapter(out)
+
+
+# Apply adapter layers to the model
 def apply_adapters_to_model(model, adapter_size, dropout):
     for name, module in model.named_modules():
         if isinstance(module, nn.Linear):
@@ -154,11 +142,24 @@ def apply_adapters_to_model(model, adapter_size, dropout):
                     parent_module = getattr(parent_module, level)
             setattr(parent_module, child_name, injected_module)
     return model
+################################################################ P R E F I X #################################################################
+class PrefixInjection(nn.Module):
+    def __init__(self, original_linear, hidden_size, scale=1.0, dropout=0.0):
+        super().__init__()
+        self.original_linear = original_linear
+        self.prefix = nn.Parameter(torch.randn(1, 1, hidden_size) * 0.02)
+        self.scale = scale
+        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
-
+    def forward(self, x):
+        out = self.original_linear(x)
+        prefix = self.dropout(self.prefix) * self.scale
+        return out + prefix
+    
+# Apply prefix layers to the model
 def apply_prefix_layers_to_model(model, prefix_size, dropout):
     for name, module in model.named_modules():
-        if isinstance(module, nn.Linear):  # or any strategic place like wte, ln_1 etc.
+        if isinstance(module, nn.Linear): 
             injected_module = PrefixInjection(
                 module, hidden_size=module.out_features,
                 scale=prefix_size, dropout=dropout
@@ -171,10 +172,12 @@ def apply_prefix_layers_to_model(model, prefix_size, dropout):
                 for level in parent_name.split("."):
                     parent_module = getattr(parent_module, level)
             setattr(parent_module, child_name, injected_module)
-            break  # optional: limit to just one place to inject prefix
+
     return model
 
 
+
+##################################################### A R G U M E N T S   P A R S I N G ###################################################
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Fine-Tuning Script for GPT2 with LoRA, Prefix Layers, and Adapters"
@@ -205,6 +208,8 @@ def parse_arguments():
     return parser.parse_args()
 
 
+
+##################################################### M A I N  ##############################################################
 def main():
 
     args = parse_arguments()
