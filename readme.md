@@ -3,6 +3,13 @@
 
 ## Prerequisites
 
+Clone the repo:
+
+```bash
+git clone https://github.com/Viditnegi/GPT2_Finetuning.git
+cd GPT2_Finetuning
+```
+
 Create the conda environment:
 
 ```bash
