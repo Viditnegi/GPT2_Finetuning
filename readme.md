@@ -1,6 +1,8 @@
 
 # GPT-2 Fine-Tuning Toolkit
 
+This toolkit is made on top of the following repo:
+https://github.com/graykode/gpt-2-Pytorch 
 ## Prerequisites
 
 Clone the repo:
